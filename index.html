@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BeatTracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;800&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --panel:#CBD5C3; --panel-2:#BCC8B3; --ink:#1F2E27; --ink-soft:#4A5B52;
+  --brass:#9C7A44; --track:#A6B39D; --amber:#FFB23F; --red:#E5483B; --btn-ink:#F4F7F1;
+  --green:#2F8A55;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --green:#5FBF82;
+    --panel:#1D2924; --panel-2:#24322C; --ink:#DCE6D6; --ink-soft:#97A79C;
+    --brass:#C9A46A; --track:#3A4A42; --btn-ink:#1D2924;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --green:#5FBF82;
+  --panel:#1D2924; --panel-2:#24322C; --ink:#DCE6D6; --ink-soft:#97A79C;
+  --brass:#C9A46A; --track:#3A4A42; --btn-ink:#1D2924;
+  color-scheme: dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0;min-height:100%;
+  background:var(--panel);color:var(--ink);
+  font:400 1rem/1.5 "Work Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:grid;place-items:center;
+}
+main{width:100%;max-width:26rem;padding:2rem 1.25rem 2.5rem;display:grid;justify-items:center;text-align:center}
+
+.bpm{
+  font-family:"Big Shoulders Display",Impact,"Arial Narrow",sans-serif;
+  font-weight:800;font-size:clamp(6rem,30vw,9.5rem);line-height:.82;
+  font-variant-numeric:tabular-nums;margin:0;
+}
+.unit{font-family:"Big Shoulders Display",Impact,sans-serif;font-weight:500;font-size:1.5rem;color:var(--ink-soft);margin:.4rem 0 0}
+
+/* tempo scale, fixed 40–280 BPM: marker = current moving average, line = average of the whole count */
+.scale{width:100%;margin-top:1.5rem;--jit:var(--ink-soft)}
+.scale[data-jitter="steady"]{--jit:var(--green)}
+.scale[data-jitter="loose"]{--jit:var(--amber)}
+.scale[data-jitter="unsteady"]{--jit:var(--red)}
+.track{position:relative;height:1.6rem}
+.track::before{content:"";position:absolute;left:0;right:0;top:50%;height:.4rem;margin-top:-.2rem;border-radius:.2rem;background:var(--track)}
+.center{position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--ink-soft)}
+.band{position:absolute;top:50%;height:.9rem;margin-top:-.45rem;border-radius:.45rem;background:var(--jit);opacity:.35}
+.marker{position:absolute;left:50%;top:50%;width:1.15rem;height:1.15rem;margin:-.575rem 0 0 -.575rem;border-radius:50%;background:var(--jit);box-shadow:0 0 0 3px var(--panel)}
+.marker,.band{transition:left .15s ease-out,width .15s ease-out}
+@media (prefers-reduced-motion: reduce){.marker,.band{transition:none}}
+.scale-labels{position:relative;display:flex;justify-content:space-between;font-size:.8rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;margin-top:.2rem}
+#sAvg{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;color:var(--ink)}
+.jitter{display:flex;align-items:center;justify-content:center;gap:.5rem;margin:.55rem 0 0;font-size:.9rem;font-weight:500;font-variant-numeric:tabular-nums}
+.jitter .dot{width:.7rem;height:.7rem;border-radius:50%;background:var(--jit);flex:none}
+
+.pilots{display:flex;gap:.75rem;margin:1.75rem 0 2.25rem;justify-content:center;flex-wrap:wrap}
+.pilot{width:1.35rem;height:1.35rem;border-radius:50%;background:var(--track);box-shadow:inset 0 0 0 2px var(--panel-2)}
+
+.tap{
+  width:min(13rem,62vw);aspect-ratio:1;border-radius:50%;
+  border:3px solid var(--brass);background:var(--panel-2);color:var(--ink);
+  display:grid;place-content:center;gap:.45rem;cursor:pointer;
+  font:800 2.4rem/1 "Big Shoulders Display",Impact,sans-serif;letter-spacing:.02em;
+  touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
+}
+.tap small{font:500 .95rem/1 "Work Sans",system-ui,sans-serif;color:var(--ink-soft);letter-spacing:0}
+.tap.hit{background:var(--brass);color:var(--btn-ink)}
+.tap.hit small{color:var(--btn-ink)}
+.tap:focus-visible{outline:3px solid var(--amber);outline-offset:4px}
+
+.status{margin:1.4rem 0 0;font-weight:500;min-height:1.5em}
+.hint{color:var(--ink-soft);font-size:.875rem;margin:.4rem 0 0;max-width:22rem}
+</style>
+</head>
+<body>
+<main>
+  <p class="bpm" id="bpm">—</p>
+  <p class="unit">beats per minute</p>
+
+  <div class="scale" id="scale" data-jitter="none">
+    <div class="track" id="track" role="img" aria-label="Tempo scale, waiting for taps">
+      <div class="band" id="band" style="display:none"></div>
+      <div class="center" id="center" style="display:none"></div>
+      <div class="marker" id="marker" style="display:none"></div>
+    </div>
+    <div class="scale-labels" aria-hidden="true"><span>40</span><span id="sAvg" style="left:50%"></span><span>280</span></div>
+    <p class="jitter"><span class="dot"></span><span id="jText">Jitter: needs three taps</span></p>
+  </div>
+
+  <div class="pilots" id="pilots" aria-hidden="true"></div>
+
+  <button class="tap" id="tap" aria-keyshortcuts="Space t Escape" aria-describedby="hint">
+    Tap<small>Space or T</small>
+  </button>
+
+  <p class="status" id="status" aria-live="polite">Tap along with the beat</p>
+  <p class="hint" id="hint">Clicks start after two taps and follow your tapping. Pausing for 2 seconds resets everything. Hold the button or press Esc to stop sooner. Keys 1–7 set beats per bar.</p>
+</main>
+
+<script type="module">
+  import { createTapTracker, jitterLevel, scalePosition, beatInBar } from "./beat-tracker.js";
+
+  /* ---------- Constants ---------- */
+  const TICK_MS = 25;          // wake-up tick; never plays sound itself
+  const SCHEDULE_AHEAD = 0.1;  // seconds queued past AudioContext.currentTime
+  const TAP_WINDOW = 4;        // intervals in the moving average
+  const TAP_RESET_MS = 2000;   // a longer pause starts a new count
+  const HOLD_MS = 700;         // press-and-hold on the button stops
+
+  /* ---------- State ---------- */
+  let ctx = null, master = null, clickAccent = null, clickBeat = null;
+  let beatsPerBar = 4, running = false;
+  // The beat grid, on the AudioContext clock: beat number q sounds at
+  // anchorCtx + (q - anchorSeq) * period. Taps move the grid; the scheduler reads it.
+  let period = 0.5, anchorCtx = 0, anchorSeq = 0, nextSeq = 0;
+  const scheduled = [];        // {src, time} for clicks handed to the audio thread
+  const visualQueue = [];      // {seq, time} for the pilot lights
+  let shown = null, rafId = 0;
+  const tracker = createTapTracker({ window: TAP_WINDOW, resetMs: TAP_RESET_MS });
+  let flashTimer = 0, idleTimer = 0, holdTimer = 0;
+
+  const $ = id => document.getElementById(id);
+  const bpmEl = $("bpm"), statusEl = $("status"), tapBtn = $("tap"), pilotsEl = $("pilots");
+  const mod = beatInBar;
+  const say = text => { statusEl.textContent = text; };
+
+  /* ---------- Audio ---------- */
+  function makeClick(freq) {
+    const sr = ctx.sampleRate, len = Math.ceil(sr * 0.04);
+    const buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      const env = Math.exp(-t * 150) * (1 - Math.exp(-t * 5000));
+      d[i] = env * (0.75 * Math.sin(2 * Math.PI * freq * t) + 0.25 * Math.sin(2 * Math.PI * freq * 2.76 * t));
+    }
+    return buf;
+  }
+
+  function ensureAudio() {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+      master = ctx.createGain();
+      master.gain.value = 0.8;
+      master.connect(ctx.destination);
+      clickAccent = makeClick(1760);
+      clickBeat = makeClick(1100);
+    }
+    if (ctx.state !== "running") ctx.resume();
+  }
+
+  // Context time that will be reaching the speakers at a given performance.now() moment.
+  // A click scheduled at this time is heard at that moment, which is what lines it up with taps.
+  function ctxAtPerf(ms) {
+    if (ctx.getOutputTimestamp) {
+      const ts = ctx.getOutputTimestamp();
+      if (ts.contextTime > 0 && ts.performanceTime > 0) return ts.contextTime + (ms - ts.performanceTime) / 1000;
+    }
+    return ctx.currentTime + (ms - performance.now()) / 1000 - (ctx.outputLatency || ctx.baseLatency || 0);
+  }
+  const heardTime = () => Math.min(ctxAtPerf(performance.now()), ctx.currentTime);
+
+  /* ---------- Wake-up ticker: Web Worker, main-thread fallback ---------- */
+  function makeTicker(onTick) {
+    let impl = null;
+    const mainThread = () => {
+      let id = null;
+      return { start: ms => { clearInterval(id); id = setInterval(onTick, ms); },
+               stop: () => { clearInterval(id); id = null; } };
+    };
+    try {
+      const src = "let id=null;onmessage=e=>{const m=e.data;" +
+        "if(m.cmd==='start'){clearInterval(id);id=setInterval(()=>postMessage(0),m.ms);}" +
+        "else{clearInterval(id);id=null;}};";
+      const w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+      w.onmessage = onTick;
+      let wanted = false;
+      w.onerror = e => { e.preventDefault?.(); impl = mainThread(); if (wanted) impl.start(TICK_MS); };
+      impl = { start: ms => { wanted = true; w.postMessage({ cmd: "start", ms }); },
+               stop: () => { wanted = false; w.postMessage({ cmd: "stop" }); } };
+    } catch (_) { impl = mainThread(); }
+    return { start: ms => impl.start(ms), stop: () => impl.stop() };
+  }
+
+  /* ---------- Scheduler ---------- */
+  const gridTime = q => anchorCtx + (q - anchorSeq) * period;
+
+  function scheduler() {
+    if (!running) return;
+    const now = ctx.currentTime;
+    if (gridTime(nextSeq) < now - 0.05) nextSeq = Math.ceil((now - anchorCtx) / period) + anchorSeq; // after a stall
+    while (gridTime(nextSeq) < now + SCHEDULE_AHEAD) {
+      scheduleNote(nextSeq, gridTime(nextSeq));
+      nextSeq++;
+    }
+  }
+
+  function scheduleNote(seq, time) {
+    const src = ctx.createBufferSource();
+    src.buffer = mod(seq, beatsPerBar) === 0 ? clickAccent : clickBeat;
+    src.connect(master);
+    src.start(time);
+    const item = { src, time };
+    scheduled.push(item);
+    src.onended = () => { const i = scheduled.indexOf(item); if (i >= 0) scheduled.splice(i, 1); };
+    visualQueue.push({ seq, time });
+  }
+
+  // The grid moved: drop clicks queued against the old grid, then refill from the new one.
+  function resync() {
+    const cut = ctx.currentTime + 0.005;
+    let lastKept = -Infinity;
+    for (let i = scheduled.length - 1; i >= 0; i--) {
+      const n = scheduled[i];
+      if (n.time > cut) { n.src.onended = null; try { n.src.stop(); } catch (_) {} scheduled.splice(i, 1); }
+      else lastKept = Math.max(lastKept, n.time);
+    }
+    for (let i = visualQueue.length - 1; i >= 0; i--) if (visualQueue[i].time > cut) visualQueue.splice(i, 1);
+    // Never put a new click closer than half a beat to one that has already gone out.
+    const earliest = Math.max(cut, lastKept + period * 0.5);
+    nextSeq = Math.ceil((earliest - anchorCtx) / period - 1e-9) + anchorSeq;
+    scheduler();
+  }
+
+  const ticker = makeTicker(scheduler);
+
+  function follow(periodS, phasePerfMs, seq) {
+    const apply = () => {
+      period = periodS;
+      anchorCtx = ctxAtPerf(phasePerfMs);
+      anchorSeq = seq;
+      bpmEl.textContent = Math.round(60 / period);  // display only; the grid keeps the exact period
+      if (!running) {
+        running = true;
+        shown = null;
+        ticker.start(TICK_MS);
+        if (!rafId) rafId = requestAnimationFrame(draw);
+      }
+      resync();
+    };
+    if (ctx.state === "running") apply(); else ctx.resume().then(apply);
+  }
+
+  function stop() {
+    clearTimeout(holdTimer);
+    tracker.reset();
+    if (!running) return;
+    running = false;
+    ticker.stop();
+    for (const n of scheduled) { n.src.onended = null; try { n.src.stop(); } catch (_) {} }
+    scheduled.length = 0;
+    visualQueue.length = 0;
+    say("Stopped. Tap to start again");
+  }
+
+  // No tap for TAP_RESET_MS: stop the clicks and clear the whole reading.
+  function reset() {
+    stop();
+    bpmEl.textContent = "—";
+    scaleEl.dataset.jitter = "none";
+    markerEl.style.display = bandEl.style.display = $("center").style.display = "none";
+    $("sAvg").textContent = "";
+    $("jText").textContent = "Jitter: needs three taps";
+    trackEl.setAttribute("aria-label", "Tempo scale, waiting for taps");
+    say("Reset after a 2-second pause. Tap to start again");
+  }
+
+  /* ---------- Tap tracking ---------- */
+  function tap(stamp) {
+    ensureAudio();
+    const r = tracker.tap(stamp);
+    if (r.ignored) return;                        // bounce or double trigger
+
+    if (r.periodMs !== null) {
+      follow(r.periodMs / 1000, r.anchorMs, r.anchorSeq);
+      updateScale(r.bpm, r.averageBpm, r.jitter);
+      say(`Following you, averaging ${r.intervals} interval${r.intervals === 1 ? "" : "s"}`);
+    } else {
+      say("Keep tapping");
+    }
+
+    tapBtn.classList.add("hit");
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => tapBtn.classList.remove("hit"), 90);
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(reset, TAP_RESET_MS);
+  }
+
+  /* ---------- Tempo scale and jitter ---------- */
+  const SCALE_MIN = 40, SCALE_MAX = 280;        // fixed tempo scale, BPM
+  const JITTER_BANDS = { steady: 0.05, loose: 0.10 }; // 0–5 % steady, 5–10 % loose, over 10 % unsteady
+  const scaleEl = $("scale"), trackEl = $("track"), markerEl = $("marker"), bandEl = $("band");
+
+  function updateScale(cur, avg, cv) {
+    const pos = v => scalePosition(v, SCALE_MIN, SCALE_MAX) * 100;
+    const measured = cv != null;
+    const centerEl = $("center");
+    centerEl.style.display = "";
+    centerEl.style.left = pos(avg) + "%";
+    markerEl.style.display = "";
+    markerEl.style.left = pos(cur) + "%";
+    const level = jitterLevel(cv, JITTER_BANDS);
+    scaleEl.dataset.jitter = level;
+    if (!measured) bandEl.style.display = "none";
+    else {                                       // band = ±1 standard deviation around the marker
+      const a = pos(cur * (1 - cv)), b = pos(cur * (1 + cv));
+      bandEl.style.display = "";
+      bandEl.style.left = a + "%";
+      bandEl.style.width = (b - a) + "%";
+    }
+    const sAvg = $("sAvg");
+    sAvg.textContent = `average ${avg.toFixed(1)}`;
+    sAvg.style.left = Math.max(16, Math.min(84, pos(avg))) + "%";  // keep the label clear of the end labels
+    $("jText").textContent = measured ? `Jitter ±${(cv * 100).toFixed(1)} %, ${level}` : "Jitter: needs three taps";
+    trackEl.setAttribute("aria-label",
+      `Current ${cur.toFixed(1)} BPM against an average of ${avg.toFixed(1)}` + (measured ? `, jitter ${level}` : ""));
+  }
+
+  /* ---------- Pilot lights ---------- */
+  function draw() {
+    let glow = 0;
+    if (ctx) {
+      const now = heardTime();
+      while (visualQueue.length && visualQueue[0].time <= now) shown = visualQueue.shift();
+      if (shown) glow = Math.exp(-(now - shown.time) / Math.min(0.09, period * 0.3));
+    }
+    const lit = shown ? mod(shown.seq, beatsPerBar) : -1;
+    const dots = pilotsEl.children;
+    for (let i = 0; i < dots.length; i++) {
+      const on = i === lit && glow > 0.02;
+      dots[i].style.background = on ? (i === 0 ? "var(--red)" : "var(--amber)") : "";
+      dots[i].style.opacity = on ? 0.45 + 0.55 * glow : "";
+    }
+    if (running || glow > 0.02) rafId = requestAnimationFrame(draw);
+    else { rafId = 0; for (const d of dots) { d.style.background = ""; d.style.opacity = ""; } }
+  }
+
+  function setMeter(n) {
+    beatsPerBar = n;
+    pilotsEl.replaceChildren(...Array.from({ length: n }, () => {
+      const d = document.createElement("span"); d.className = "pilot"; return d;
+    }));
+  }
+  setMeter(4);
+
+  /* ---------- Input ---------- */
+  tapBtn.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    tap(e.timeStamp);
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(stop, HOLD_MS);
+  });
+  const release = () => { clearTimeout(holdTimer); if (ctx && ctx.state !== "running") ctx.resume(); };
+  tapBtn.addEventListener("pointerup", release);       // also unlocks audio where pointerdown cannot
+  tapBtn.addEventListener("pointercancel", release);
+  tapBtn.addEventListener("pointerleave", release);
+  tapBtn.addEventListener("contextmenu", e => e.preventDefault());
+  tapBtn.addEventListener("keyup", e => { if (e.code === "Space") e.preventDefault(); });
+
+  document.addEventListener("keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "Escape") { stop(); return; }
+    const isTap = e.code === "Space" || e.key === "t" || e.key === "T" || (e.key === "Enter" && e.target === tapBtn);
+    if (isTap) { e.preventDefault(); if (!e.repeat) tap(e.timeStamp); return; }
+    if (/^[1-7]$/.test(e.key)) setMeter(+e.key);
+  });
+</script>
+</body>
+</html>
