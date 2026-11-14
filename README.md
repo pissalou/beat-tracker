@@ -13,4 +13,4 @@ ECMAScript module that can "feel the beat" by measuring length of notes received
 - `reset()` clears everything.
 - `isIdle(nowMs)` says whether more than 2 seconds have passed since the last tap.
 
-The module also exports pure helpers: beatTimeMs, nextBeat, beatInBar, jitterLevel and scalePosition. The default window, reset gap and outlier limits are in DEFAULTS, and you can override any of them.
+The module also exports pure helpers: `beatTimeMs`, `nextBeat`, `beatInBar`, `jitterLevel` and `scalePosition`. The default window, reset gap and outlier limits are in DEFAULTS, and you can override any of them.
