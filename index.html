@@ -110,7 +110,7 @@ main{width:100%;max-width:26rem;padding:2rem 1.25rem 2.5rem;display:grid;justify
 </main>
 
 <script type="module">
-  import { createTapTracker, jitterLevel, scalePosition, beatInBar } from "./beat-tracker.js";
+  import { createTapTracker, jitterLevel, beatInBar } from "./beat-tracker.js";
 
   /* ---------- Constants ---------- */
   const TICK_MS = 25;          // wake-up tick; never plays sound itself
@@ -301,6 +301,11 @@ main{width:100%;max-width:26rem;padding:2rem 1.25rem 2.5rem;display:grid;justify
   const SCALE_MIN = 40, SCALE_MAX = 280;        // fixed tempo scale, BPM
   const JITTER_BANDS = { steady: 0.05, loose: 0.10 }; // 0–5 % steady, 5–10 % loose, over 10 % unsteady
   const scaleEl = $("scale"), trackEl = $("track"), markerEl = $("marker"), bandEl = $("band");
+  
+  /** Fraction 0–1 along a fixed tempo scale, clamped at the ends. */
+  function scalePosition(bpm, min = 40, max = 280) {
+    return Math.max(0, Math.min(1, (bpm - min) / (max - min)));
+  }
 
   function updateScale(cur, avg, cv) {
     const pos = v => scalePosition(v, SCALE_MIN, SCALE_MAX) * 100;

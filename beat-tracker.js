@@ -10,8 +10,6 @@ export const DEFAULTS = Object.freeze({
   window: 4,          // intervals in the moving average
   resetMs: 2000,      // a gap longer than this starts a new count
   minIntervalMs: 100, // taps closer than this are ignored (switch bounce, double triggers)
-  outlierLow: 0.6,    // an interval shorter than average × outlierLow restarts the count
-  outlierHigh: 1.6,   // an interval longer than average × outlierHigh restarts the count
 });
 
 const IGNORED = Object.freeze({ ignored: true });
@@ -19,9 +17,8 @@ const IGNORED = Object.freeze({ ignored: true });
 /**
  * @typedef {object} TapReading
  * @property {false} ignored
- * @property {"first"|"pause"|"outlier"|null} restart  why this tap began a new count, if it did
+ * @property {"first"|"pause"|null} restart  why this tap began a new count, if it did
  * @property {number} seq          beat number of this tap; 0 is the downbeat of the count.
- *                                 An outlier restart keeps numbering so the downbeat stays put.
  * @property {number} taps         taps in the moving window
  * @property {number} intervals    intervals in the moving window
  * @property {number|null} periodMs   moving average of the window intervals
@@ -39,9 +36,6 @@ export function createTapTracker(options = {}) {
   if (!Number.isInteger(opts.window) || opts.window < 1) throw new RangeError("window must be an integer ≥ 1");
   if (!(opts.resetMs > 0)) throw new RangeError("resetMs must be > 0");
   if (!(opts.minIntervalMs >= 0)) throw new RangeError("minIntervalMs must be ≥ 0");
-  if (!(opts.outlierLow > 0 && opts.outlierLow < 1 && opts.outlierHigh > 1)) {
-    throw new RangeError("outlier bounds must satisfy 0 < outlierLow < 1 < outlierHigh");
-  }
 
   let taps = [];        // {t, seq}, at most window + 1
   let seq = 0;          // next beat number
@@ -55,7 +49,11 @@ export function createTapTracker(options = {}) {
     totalN = 0;
   }
 
-  /** @param {number} timeMs @returns {TapReading | {ignored: true}} */
+  /** 
+   * @param {number} timeMs from a monotonic clock, such as performance.now() or Event.timeStamp 
+   * @returns {TapReading | {ignored: true}} 
+    const end = taps[taps.length - 1];
+   **/
   function tap(timeMs) {
     if (!Number.isFinite(timeMs)) throw new TypeError("tap time must be a finite number of milliseconds");
 
@@ -73,13 +71,7 @@ export function createTapTracker(options = {}) {
       restart ??= "first";
     } else if (taps.length >= 2) {
       const avg = (last.t - taps[0].t) / (last.seq - taps[0].seq);
-      const iv = timeMs - last.t;
-      if (iv < avg * opts.outlierLow || iv > avg * opts.outlierHigh) {
-        taps = [last];             // follow the new tempo at once
-        totalMs = 0;
-        totalN = 0;
-        restart = "outlier";
-      }
+      const iv = timeMs - last.t; // current interval
     }
 
     if (last) {
@@ -95,7 +87,7 @@ export function createTapTracker(options = {}) {
   function reading(restart) {
     const first = taps[0];
     const end = taps[taps.length - 1];
-    const base = { ignored: false, restart, seq: end.seq, taps: taps.length, intervals: taps.length - 1 };
+    const base = { ignored: false, restart, taps: taps.length };
 
     if (taps.length < 2) {
       return Object.freeze({ ...base, periodMs: null, bpm: null, anchorSeq: end.seq, anchorMs: end.t,
@@ -161,9 +153,4 @@ export const beatInBar = (seq, beatsPerBar) => ((seq % beatsPerBar) + beatsPerBa
 export function jitterLevel(jitter, { steady = 0.05, loose = 0.10 } = {}) {
   if (jitter == null || Number.isNaN(jitter)) return "none";
   return jitter <= steady ? "steady" : jitter <= loose ? "loose" : "unsteady";
-}
-
-/** Fraction 0–1 along a fixed tempo scale, clamped at the ends. */
-export function scalePosition(bpm, min = 40, max = 280) {
-  return Math.max(0, Math.min(1, (bpm - min) / (max - min)));
 }
