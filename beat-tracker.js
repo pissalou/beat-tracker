@@ -87,7 +87,7 @@ export function createTapTracker(options = {}) {
   function reading(restart) {
     const first = taps[0];
     const end = taps[taps.length - 1];
-    const base = { ignored: false, restart, taps: taps.length };
+    const base = { ignored: false, restart, taps: taps };
 
     if (taps.length < 2) {
       return Object.freeze({ ...base, periodMs: null, bpm: null, anchorSeq: end.seq, anchorMs: end.t,

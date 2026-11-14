@@ -11,7 +11,7 @@ const evenly = (n, intervalMs, start = 0) => Array.from({ length: n }, (_, i) =>
 describe("createTapTracker", () => {
   it("needs two taps before reporting a tempo", () => {
     const r = createTapTracker().tap(1000);
-    expect(r).toMatchObject({ ignored: false, restart: "first", taps: 1 });
+    expect(r).toMatchObject({ ignored: false, restart: "first", taps: [{t: 1000, seq: 0}] });
     expect(r.bpm).toBeNull();
     expect(r.periodMs).toBeNull();
     expect(r.jitter).toBeNull();
@@ -24,21 +24,21 @@ describe("createTapTracker", () => {
     expect(r.averageBpm).toBeCloseTo(120);
     expect(r.jitter).toBe(0);
     expect(r.restart).toBeNull();
-    expect(r.taps).toBe(5);
+    expect(r.taps).toEqual([{t: 0, seq: 0}, {t: 500, seq: 1}, {t: 1000, seq: 2}, {t: 1500, seq: 3}, {t: 2000, seq: 4}]);
   });
 
   it("averages only the last `window` intervals", () => {
     const t = createTapTracker();
     const times = [...evenly(5, 500), ...evenly(4, 450, 2450)];   // 4 × 500 ms, then 4 × 450 ms
     const r = tapAll(t, times).at(-1);
-    expect(r.taps).toBe(5);  // window = 4, so only the last 4 intervals are averaged
+    expect(r.taps).toEqual([{t: 2000, seq: 4}, {t: 2450, seq: 5}, {t: 2900, seq: 6}, {t: 3350, seq: 7}, {t: 3800, seq: 8}]);  // window = 4, so only the last 4 intervals are averaged
     expect(r.bpm).toBeCloseTo(60000 / 450);         // window holds only the 450 ms intervals
     expect(r.averageBpm).toBeCloseTo(60000 / 475);  // whole count: mean of 500 and 450
   });
 
   it("honours a custom window size", () => {
     const r = tapAll(createTapTracker({ window: 2 }), [0, 600, 1100, 1600]).at(-1);
-    expect(r.taps).toBe(3);  // window = 2, so only the last 2 intervals are averaged
+    expect(r.taps).toEqual([{t: 600, seq: 1}, {t: 1100, seq: 2}, {t: 1600, seq: 3}]);  // window = 2, so only the last 2 intervals are averaged
     expect(r.periodMs).toBeCloseTo(500);
   });
 
@@ -67,7 +67,7 @@ describe("createTapTracker", () => {
       const t = createTapTracker();
       tapAll(t, evenly(4, 500));
       const r = t.tap(1500 + 2001);
-      expect(r).toMatchObject({ restart: "pause", taps: 1 });
+      expect(r).toMatchObject({ restart: "pause", taps: [{t: 3501, seq: 0}] });
       expect(r.averageBpm).toBeNull();
     });
 
@@ -90,7 +90,7 @@ describe("createTapTracker", () => {
       const t = createTapTracker();
       tapAll(t, evenly(4, 500));
       t.reset();
-      expect(t.tap(1600)).toMatchObject({ restart: "first", taps: 1 });
+      expect(t.tap(1600)).toMatchObject({ restart: "first", taps: [{t: 1600, seq: 0}] });
     });
   });
 
@@ -100,7 +100,7 @@ describe("createTapTracker", () => {
     expect(t.tap(530)).toEqual({ ignored: true });
     expect(t.tap(400)).toEqual({ ignored: true });   // time going backwards
     const r = t.tap(1000);
-    expect(r.taps).toBe(3); // not 4
+    expect(r.taps).toEqual([{t: 0, seq: 0}, {t: 500, seq: 1}, {t: 1000, seq: 2}]); // not 4
     expect(r.bpm).toBeCloseTo(120);
   });
 
