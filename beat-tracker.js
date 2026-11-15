@@ -39,12 +39,14 @@ export function createTapTracker(options = {}) {
 
   let taps = [];        // {t, seq}, at most window + 1
   let seq = 0;          // next beat number
+  let denominator = 1;  // for representing fractional durations, e.g. 3/4  of a beat
   let totalMs = 0;      // sum of every interval in the current count
   let totalN = 0;
 
   function reset() {
     taps = [];
     seq = 0;
+    denominator = 1;
     totalMs = 0;
     totalN = 0;
   }
@@ -66,18 +68,21 @@ export function createTapTracker(options = {}) {
       restart = "pause";
     }
 
+    let numerator = null;
     if (!last) {
-      restart ??= "first";
+      restart ??= "first"; // first tap of a new count
+      numerator = 1;
     } else if (taps.length >= 1) {
       const previousDuration = timeMs - last.t; // current interval
       last.d = previousDuration; // update the last tap's interval
+      numerator = denominator; // for now, we only support whole beats; could be extended to support fractional beats
     }
 
     if (last) {
       totalMs += timeMs - last.t;
       totalN++;
     }
-    taps.push({ t: timeMs, d: null, seq: seq++ });
+    taps.push({ t: timeMs, numerator, d: null, seq: seq++ });
     if (taps.length > opts.window + 1) taps.shift();
 
     return reading(restart);
@@ -86,7 +91,7 @@ export function createTapTracker(options = {}) {
   function reading(restart) {
     const first = taps[0];
     const end = taps[taps.length - 1];
-    const base = { ignored: false, restart, taps: taps };
+    const base = { ignored: false, restart, denominator, taps };
 
     if (taps.length < 2) {
       return Object.freeze({ ...base, periodMs: null, bpm: null, beatNumber: end.seq, gridOriginMs: end.t,
