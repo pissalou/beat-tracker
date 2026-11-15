@@ -68,16 +68,16 @@ export function createTapTracker(options = {}) {
 
     if (!last) {
       restart ??= "first";
-    } else if (taps.length >= 2) {
-      const avg = (last.t - taps[0].t) / (last.seq - taps[0].seq);
-      const iv = timeMs - last.t; // current interval
+    } else if (taps.length >= 1) {
+      const previousDuration = timeMs - last.t; // current interval
+      last.d = previousDuration; // update the last tap's interval
     }
 
     if (last) {
       totalMs += timeMs - last.t;
       totalN++;
     }
-    taps.push({ t: timeMs, seq: seq++ });
+    taps.push({ t: timeMs, d: null, seq: seq++ });
     if (taps.length > opts.window + 1) taps.shift();
 
     return reading(restart);
@@ -94,7 +94,7 @@ export function createTapTracker(options = {}) {
     }
 
     // Moving average of the window intervals = span / number of intervals.
-    const periodMs = (end.t - first.t) / (end.seq - first.seq);
+    const periodMs = taps.map(t => t.d).reduce((sum, d) => sum + d, 0) / (taps.length - 1);
 
     // Phase: each tap's estimate of when beat first.seq fell, averaged, so a single
     // early or late tap moves the grid by only a fraction of its error.
