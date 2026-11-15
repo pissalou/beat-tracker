@@ -123,8 +123,8 @@ main{width:100%;max-width:26rem;padding:2rem 1.25rem 2.5rem;display:grid;justify
   let ctx = null, master = null, clickAccent = null, clickBeat = null;
   let beatsPerBar = 4, running = false;
   // The beat grid, on the AudioContext clock: beat number q sounds at
-  // anchorCtx + (q - anchorSeq) * period. Taps move the grid; the scheduler reads it.
-  let period = 0.5, anchorCtx = 0, anchorSeq = 0, nextSeq = 0;
+  // anchorCtx + (q - beatNumber) * period. Taps move the grid; the scheduler reads it.
+  let period = 0.5, anchorCtx = 0, beatNumber = 0, nextSeq = 0;
   const scheduled = [];        // {src, time} for clicks handed to the audio thread
   const visualQueue = [];      // {seq, time} for the pilot lights
   let shown = null, rafId = 0;
@@ -194,12 +194,12 @@ main{width:100%;max-width:26rem;padding:2rem 1.25rem 2.5rem;display:grid;justify
   }
 
   /* ---------- Scheduler ---------- */
-  const gridTime = q => anchorCtx + (q - anchorSeq) * period;
+  const gridTime = q => anchorCtx + (q - beatNumber) * period;
 
   function scheduler() {
     if (!running) return;
     const now = ctx.currentTime;
-    if (gridTime(nextSeq) < now - 0.05) nextSeq = Math.ceil((now - anchorCtx) / period) + anchorSeq; // after a stall
+    if (gridTime(nextSeq) < now - 0.05) nextSeq = Math.ceil((now - anchorCtx) / period) + beatNumber; // after a stall
     while (gridTime(nextSeq) < now + SCHEDULE_AHEAD) {
       scheduleNote(nextSeq, gridTime(nextSeq));
       nextSeq++;
@@ -229,17 +229,17 @@ main{width:100%;max-width:26rem;padding:2rem 1.25rem 2.5rem;display:grid;justify
     for (let i = visualQueue.length - 1; i >= 0; i--) if (visualQueue[i].time > cut) visualQueue.splice(i, 1);
     // Never put a new click closer than half a beat to one that has already gone out.
     const earliest = Math.max(cut, lastKept + period * 0.5);
-    nextSeq = Math.ceil((earliest - anchorCtx) / period - 1e-9) + anchorSeq;
+    nextSeq = Math.ceil((earliest - anchorCtx) / period - 1e-9) + beatNumber;
     scheduler();
   }
 
   const ticker = makeTicker(scheduler);
 
-  function follow(periodS, phasePerfMs, seq) {
+  function follow(periodS, phasePerfMs, newBeatNumber) {
     const apply = () => {
       period = periodS;
       anchorCtx = ctxAtPerf(phasePerfMs);
-      anchorSeq = seq;
+      beatNumber = newBeatNumber;
       bpmEl.textContent = Math.round(60 / period);  // display only; the grid keeps the exact period
       if (!running) {
         running = true;
@@ -283,7 +283,7 @@ main{width:100%;max-width:26rem;padding:2rem 1.25rem 2.5rem;display:grid;justify
     if (r.ignored) return;                        // bounce or double trigger
 
     if (r.periodMs !== null) {
-      follow(r.periodMs / 1000, r.anchorMs, r.anchorSeq);
+      follow(r.periodMs / 1000, r.gridOriginMs, r.beatNumber);
       updateScale(r.bpm, r.averageBpm, r.jitter);
       say(`Following you, averaging ${r.intervals} interval${r.intervals === 1 ? "" : "s"}`);
     } else {

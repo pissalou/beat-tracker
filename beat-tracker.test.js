@@ -11,7 +11,7 @@ const evenly = (n, intervalMs, start = 0) => Array.from({ length: n }, (_, i) =>
 describe("createTapTracker", () => {
   it("needs two taps before reporting a tempo", () => {
     const r = createTapTracker().tap(1000);
-    expect(r).toMatchObject({ ignored: false, restart: "first", taps: [{t: 1000, seq: 0}] });
+    expect(r).toMatchObject({ ignored: false, restart: "first", beatNumber: 0, taps: [{t: 1000, seq: 0}] });
     expect(r.bpm).toBeNull();
     expect(r.periodMs).toBeNull();
     expect(r.jitter).toBeNull();
@@ -58,8 +58,8 @@ describe("createTapTracker", () => {
   it("averages phase so one early and one late tap cancel out", () => {
     const r = tapAll(createTapTracker(), [1000, 1510, 1990, 2500]).at(-1);
     expect(r.periodMs).toBeCloseTo(500);
-    expect(r.anchorSeq).toBe(0);
-    expect(r.anchorMs).toBeCloseTo(1000);
+    expect(r.beatNumber).toBe(0);
+    expect(r.gridOriginMs).toBeCloseTo(1000);
   });
 
   describe("restarting a count", () => {

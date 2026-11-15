@@ -7,7 +7,7 @@ ECMAScript module that can "feel the beat" by measuring length of notes received
     - `bpm` and `periodMs`: the tempo from the moving average.
     - `averageBpm`: the tempo over the whole count.
 - `jitter`: the coefficient of variation of the recent intervals.
-- `anchorMs` and `anchorSeq`: the phase-averaged beat position.
+- `gridOriginMs` and `beatNumber`: the phase-averaged beat position; `beatNumber` is 0-based.
 - `seq`: this tap’s beat number.
 - `restart`: "first", "pause", "outlier" or null, saying why a new count began.
 - `reset()` clears everything.

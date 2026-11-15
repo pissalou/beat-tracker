@@ -23,9 +23,9 @@ const IGNORED = Object.freeze({ ignored: true });
  * @property {number} intervals    intervals in the moving window
  * @property {number|null} periodMs   moving average of the window intervals
  * @property {number|null} bpm        60000 / periodMs
- * @property {number} anchorSeq    beat number the anchor refers to
- * @property {number} anchorMs     phase-averaged time of beat anchorSeq; beat q falls at
- *                                 anchorMs + (q - anchorSeq) × periodMs
+ * @property {number} beatNumber   0-based beat number the grid origin refers to
+ * @property {number} gridOriginMs phase-averaged time of beat beatNumber; beat q falls at
+ *                                 gridOriginMs + (q - beatNumber) × periodMs
  * @property {number|null} jitter     sample standard deviation of the window intervals / periodMs
  * @property {number|null} averageBpm tempo over every interval of the current count
  */
@@ -52,7 +52,6 @@ export function createTapTracker(options = {}) {
   /** 
    * @param {number} timeMs from a monotonic clock, such as performance.now() or Event.timeStamp 
    * @returns {TapReading | {ignored: true}} 
-    const end = taps[taps.length - 1];
    **/
   function tap(timeMs) {
     if (!Number.isFinite(timeMs)) throw new TypeError("tap time must be a finite number of milliseconds");
@@ -90,7 +89,7 @@ export function createTapTracker(options = {}) {
     const base = { ignored: false, restart, taps: taps };
 
     if (taps.length < 2) {
-      return Object.freeze({ ...base, periodMs: null, bpm: null, anchorSeq: end.seq, anchorMs: end.t,
+      return Object.freeze({ ...base, periodMs: null, bpm: null, beatNumber: end.seq, gridOriginMs: end.t,
                              jitter: null, averageBpm: null });
     }
 
@@ -116,8 +115,8 @@ export function createTapTracker(options = {}) {
       ...base,
       periodMs,
       bpm: 60000 / periodMs,
-      anchorSeq: first.seq,
-      anchorMs: sum / taps.length,
+      beatNumber: first.seq,
+      gridOriginMs: sum / taps.length,
       jitter,
       averageBpm: 60000 / (totalMs / totalN),
     });
@@ -135,13 +134,13 @@ export function createTapTracker(options = {}) {
 /** Time of beat `seq` on the reading's grid, or null before two taps. */
 export function beatTimeMs(reading, seq) {
   if (reading.periodMs == null) return null;
-  return reading.anchorMs + (seq - reading.anchorSeq) * reading.periodMs;
+  return reading.gridOriginMs + (seq - reading.beatNumber) * reading.periodMs;
 }
 
 /** First beat strictly after `afterMs`, as {seq, timeMs}, or null before two taps. */
 export function nextBeat(reading, afterMs) {
   if (reading.periodMs == null) return null;
-  let seq = Math.floor((afterMs - reading.anchorMs) / reading.periodMs) + reading.anchorSeq + 1;
+  let seq = Math.floor((afterMs - reading.gridOriginMs) / reading.periodMs) + reading.beatNumber + 1;
   if (beatTimeMs(reading, seq - 1) > afterMs) seq--;   // guard against floating-point edge cases
   return { seq, timeMs: beatTimeMs(reading, seq) };
 }
