@@ -3,7 +3,7 @@ ECMAScript module that can "feel the beat" by measuring length of notes received
 
 ## API
 - `createTapTracker(options)` returns an object with three methods:
-    - `tap(timeMs)` takes a timestamp in milliseconds. Each tap returns a frozen reading:
+    - `tap(timeMs)` takes a timestamp in milliseconds. Each accepted tap returns a frozen `TapReading` instance:
     - `bpm` and `periodMs`: the tempo from the moving average.
     - `averageBpm`: the tempo over the whole count.
 - `jitter`: the coefficient of variation of the recent intervals.

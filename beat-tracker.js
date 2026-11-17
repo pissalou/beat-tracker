@@ -15,20 +15,43 @@ export const DEFAULTS = Object.freeze({
 const IGNORED = Object.freeze({ ignored: true });
 
 /**
- * @typedef {object} TapReading
+ * A frozen reading of the tap tracker's current tempo and beat grid.
  * @property {false} ignored
- * @property {"first"|"pause"|null} restart  why this tap began a new count, if it did
- * @property {number} seq          beat number of this tap; 0 is the downbeat of the count.
- * @property {number} taps         taps in the moving window
- * @property {number} intervals    intervals in the moving window
- * @property {number|null} periodMs   moving average of the window intervals
- * @property {number|null} bpm        60000 / periodMs
- * @property {number} beatNumber   0-based beat number the grid origin refers to
- * @property {number} gridOriginMs phase-averaged time of beat beatNumber; beat q falls at
- *                                 gridOriginMs + (q - beatNumber) × periodMs
- * @property {number|null} jitter     sample standard deviation of the window intervals / periodMs
+ * @property {"first"|"pause"|null} restart why this tap began a new count, if it did
+ * @property {number} denominator
+ * @property {Array<{t: number, numerator: number|null, d: number|null, seq: number}>} taps
+ * @property {number|null} periodMs moving average of the window intervals
+ * @property {number|null} bpm 60000 / periodMs
+ * @property {number} beatNumber 0-based beat number the grid origin refers to
+ * @property {number} gridOriginMs phase-averaged time of beat beatNumber
+ * @property {number|null} jitter sample standard deviation of window intervals / periodMs
  * @property {number|null} averageBpm tempo over every interval of the current count
  */
+export class TapReading {
+  /**
+   * @param {{
+   *   restart: "first"|"pause"|null,
+   *   denominator: number,
+   *   taps: Array<{t: number, numerator: number|null, d: number|null, seq: number}>,
+   *   periodMs: number|null,
+   *   bpm: number|null,
+   *   beatNumber: number,
+   *   gridOriginMs: number,
+   *   jitter: number|null,
+   *   averageBpm: number|null
+   * }} values
+   */
+  constructor(values) {
+    Object.assign(this, { ignored: false, ...values });
+    Object.freeze(this);
+  }
+
+  toString() {
+    const bpm = this.bpm == null ? "unavailable" : `${this.bpm} BPM`;
+    const ratios = this.taps.map(tap => `${tap.numerator}/${this.denominator}`).join(", ");
+    return `${bpm}; taps: ${ratios}`;
+  }
+}
 
 /** @param {Partial<typeof DEFAULTS>} [options] */
 export function createTapTracker(options = {}) {
@@ -53,7 +76,7 @@ export function createTapTracker(options = {}) {
 
   /** 
    * @param {number} timeMs from a monotonic clock, such as performance.now() or Event.timeStamp 
-   * @returns {TapReading | {ignored: true}} 
+   * @returns {TapReading | {ignored: true}}
    **/
   function tap(timeMs) {
     if (!Number.isFinite(timeMs)) throw new TypeError("tap time must be a finite number of milliseconds");
@@ -94,8 +117,8 @@ export function createTapTracker(options = {}) {
     const base = { ignored: false, restart, denominator, taps };
 
     if (taps.length < 2) {
-      return Object.freeze({ ...base, periodMs: null, bpm: null, beatNumber: end.seq, gridOriginMs: end.t,
-                             jitter: null, averageBpm: null });
+      return new TapReading({ ...base, periodMs: null, bpm: null, beatNumber: end.seq, gridOriginMs: end.t,
+                              jitter: null, averageBpm: null });
     }
 
     // Moving average of the window intervals = span / number of intervals.
@@ -116,7 +139,7 @@ export function createTapTracker(options = {}) {
       jitter = Math.sqrt(ss / (taps.length - 2)) / periodMs;   // sample SD over (intervals − 1)
     }
 
-    return Object.freeze({
+    return new TapReading({
       ...base,
       periodMs,
       bpm: 60000 / periodMs,

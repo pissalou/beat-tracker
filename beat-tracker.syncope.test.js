@@ -22,4 +22,13 @@ describe("createTapTracker", () => {
     expect(r.bpm).toBeCloseTo(120);
     });
 
+  
+  it("formats BPM and each tap's beat ratio", () => {
+    const tracker = createTapTracker();
+    const firstTapReading = tracker.tap(0);
+    expect(firstTapReading.toString()).toBe("unavailable; taps: 1/1");
+
+    const secondTapReading = tracker.tap(500);
+    expect(secondTapReading.toString()).toBe("120 BPM; taps: 1/1, 1/1");
+  });
 });

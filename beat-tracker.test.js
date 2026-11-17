@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  createTapTracker, DEFAULTS, beatTimeMs, nextBeat, beatInBar, jitterLevel, scalePosition,
+  createTapTracker, TapReading, DEFAULTS, beatTimeMs, nextBeat, beatInBar, jitterLevel, scalePosition,
 } from "./beat-tracker.js";
 
 /** Tap at each time in order and return every reading. */
@@ -126,6 +126,7 @@ describe("createTapTracker", () => {
 
   it("returns frozen readings", () => {
     const r = tapAll(createTapTracker(), [0, 500]).at(-1);
+    expect(r).toBeInstanceOf(TapReading);
     expect(Object.isFrozen(r)).toBe(true);
   });
 
