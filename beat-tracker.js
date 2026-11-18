@@ -49,7 +49,7 @@ export class TapReading {
   toString() {
     const bpm = this.bpm == null ? "unavailable" : `${this.bpm} BPM`;
     const ratios = this.taps.map(tap => `${tap.numerator}/${this.denominator}`).join(", ");
-    return `${bpm}; taps: ${ratios}`;
+    return `${bpm}; taps: ${ratios}`; // numerator of the last tap will always be 1
   }
 }
 
@@ -74,6 +74,19 @@ export function createTapTracker(options = {}) {
     totalN = 0;
   }
 
+  function greatestCommonDivisor(a, b) {
+  a = Math.abs(a);
+  b = Math.abs(b);
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return a;
+}
+
+function sum(numbers) {
+  return numbers.reduce((total, num) => total + num, 0);
+}
+
   /** 
    * @param {number} timeMs from a monotonic clock, such as performance.now() or Event.timeStamp 
    * @returns {TapReading | {ignored: true}}
@@ -95,9 +108,29 @@ export function createTapTracker(options = {}) {
     if (!last) {
       restart ??= "first"; // first tap of a new count
       numerator = 1;
-    } else if (taps.length >= 1) {
-      const previousDuration = timeMs - last.t; // current interval
-      last.d = previousDuration; // update the last tap's interval
+    } else {
+      const previousDuration = timeMs - last.t;
+      last.d = previousDuration; // update the last tap
+      console.log("iteration", taps.length);
+      if (taps.length >= 2) {
+        const allDurations = taps.map(t => t.d);
+        const gcd = allDurations.reduce((a, b) => greatestCommonDivisor(a, b));
+        if (allDurations.every(d => Math.max(d, previousDuration) % gcd === 0)) {
+          // all durations are multiples of each other, so we can represent them as a fraction of a beat
+          console.log("gcd", gcd, "allDurations", allDurations);
+          let maxDenominator = Math.max(...allDurations) / gcd;
+          if (denominator < 4 && maxDenominator > 4) {
+            maxDenominator = 4; // limit denominator to 4 for common time signatures
+          }
+          denominator = Math.max(denominator, maxDenominator);
+          console.log("denominator", denominator, "maxAllDurations", Math.max(...allDurations));
+          // update the numerators of all taps to reflect the new denominator
+          taps.forEach(tap => {
+              tap.numerator = tap.d / gcd;
+          });
+          console.log("sumAllDurations", sum(allDurations), "updated taps", taps);
+        }
+      }
       numerator = denominator; // for now, we only support whole beats; could be extended to support fractional beats
     }
 
@@ -121,8 +154,8 @@ export function createTapTracker(options = {}) {
                               jitter: null, averageBpm: null });
     }
 
-    // Moving average of the window intervals = span / number of intervals.
-    const periodMs = taps.map(t => t.d).reduce((sum, d) => sum + d, 0) / (taps.length - 1);
+    // 
+    const periodMs = taps[0].d == null ? null : (taps[0].d / taps[0].numerator) * denominator;  // moving average of the window intervals
 
     // Phase: each tap's estimate of when beat first.seq fell, averaged, so a single
     // early or late tap moves the grid by only a fraction of its error.

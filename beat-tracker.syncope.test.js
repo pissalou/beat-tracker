@@ -31,4 +31,13 @@ describe("createTapTracker", () => {
     const secondTapReading = tracker.tap(500);
     expect(secondTapReading.toString()).toBe("120 BPM; taps: 1/1, 1/1");
   });
+
+  it("syncopate like seven nation army", () => {
+    const tracker = createTapTracker();
+    expect(tracker.tap(0).toString()).toBe("unavailable; taps: 1/1");
+    expect(tracker.tap(750).toString()).toBe("80 BPM; taps: 1/1, 1/1");
+    expect(tracker.tap(1000).toString()).toBe("80 BPM; taps: 3/3, 1/3, 3/3");
+    expect(tracker.tap(1375).toString()).toBe("120 BPM; taps: 6/4, 2/4, 3/4, 4/4");
+    // TODO last tap should not be 1 beat, find a way to represent the last tap as unknown
+  });
 });
