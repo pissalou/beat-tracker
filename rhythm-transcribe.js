@@ -17,6 +17,8 @@ function transcribe(tapsMs, {
   preferredBpm = 120, // tempo to tend toward (penalty cost evaluated on a log scale)
   wError = 10.0, // weight of timing error in the cost function
   wTempo = 1.0, // weight of tempo plausibility in the cost function
+  beatsPerBar = 4,
+  firstTapBeat = null, // force the first tap's position in the bar (in beats, 0-based)
 } = {}) {
   const iois = tapsMs.slice(1).map((t, i) => t - tapsMs[i]);
   if (iois.length === 0) throw new Error("need at least two taps");
@@ -58,6 +60,43 @@ function transcribe(tapsMs, {
     }
   }
 
+  // --- Metrical position (phase) ---------------------------------------
+  // The first tap may fall anywhere in the bar (e.g. a pickup), so try every
+  // grid position in the bar and keep the one where the taps line up best
+  // with strong metrical positions.
+  const { subdiv, counts } = best;
+  const barUnits = subdiv * beatsPerBar;
+  const relUnits = [0];
+  for (const c of counts) relUnits.push(relUnits[relUnits.length - 1] + c);
+
+  let offsetUnits;
+  if (firstTapBeat !== null) {
+    offsetUnits = Math.round(firstTapBeat * subdiv);
+  } else {
+    // Every tap counts for its position. Taps with a known length (the gap to
+    // the next tap) count extra in proportion to it, since long notes tend to
+    // start on strong beats. The last tap's length is unknown, so it adds no
+    // length evidence: it counts for its position only.
+    const lengths = [...counts, 0];
+    let bestFit = -Infinity;
+    for (let o = 0; o < barUnits; o++) {
+      const fit = relUnits.reduce(
+        (sum, u, i) =>
+          sum + metricWeight((o + u) % barUnits, subdiv, beatsPerBar) * (1 + lengths[i]),
+        0
+      );
+      if (fit > bestFit) {
+        bestFit = fit;
+        offsetUnits = o;
+      }
+    }
+  }
+
+  // Positions in beats from the start of the first tap's bar.
+  const onsetBeats = relUnits.map((u) => (offsetUnits + u) / subdiv);
+  const indicesWhere = (pred) =>
+    onsetBeats.flatMap((pos, i) => (pred(pos) ? [i] : []));
+
   return {
     bpm: best.bpm,
     durations: best.counts.map((c) => `${c}/${best.subdiv}`), // in beats
@@ -66,7 +105,25 @@ function transcribe(tapsMs, {
     // 1.0 = perfect fit (cost 0); falls toward 0 as the cost grows.
     score: +Math.exp(-best.cost).toFixed(3),
     cost: +best.cost.toFixed(3),
+    firstTapBeat: offsetUnits / subdiv, // 0 = on beat 1; 3.5 = pickup on the "and" of beat 4 (in 4/4)
+    onsetBeats, // position of each tap, in beats from the start of the first bar
+    onBeat: indicesWhere((pos) => Number.isInteger(pos)), // tap indices on any beat
+    downbeats: indicesWhere((pos) => pos % beatsPerBar === 0), // tap indices on beat 1 of a bar
   };
+}
+
+/**
+ * Metrical strength of a grid position within the bar: one point for each
+ * level it sits on (grid unit, half beat, beat, half bar, bar). In 4/4 with
+ * sixteenths: beat 1 = 5, beat 3 = 4, beats 2/4 = 3, eighths = 2, others = 1.
+ */
+function metricWeight(pos, subdiv, beatsPerBar) {
+  let w = 1;
+  if (subdiv % 2 === 0 && pos % (subdiv / 2) === 0) w++;
+  if (pos % subdiv === 0) w++;
+  if (beatsPerBar % 2 === 0 && pos % ((subdiv * beatsPerBar) / 2) === 0) w++;
+  if (pos === 0) w++;
+  return w;
 }
 
 export { transcribe, SUBDIVISION_COST };
