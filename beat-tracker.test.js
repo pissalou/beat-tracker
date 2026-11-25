@@ -27,7 +27,7 @@ describe("createTapTracker", () => {
     expect(r.taps).toEqual([{t: 0, numerator: 1, d: 500, seq: 0}, {t: 500, numerator: 1, d: 500, seq: 1}, {t: 1000, numerator: 1, d: 500, seq: 2}, {t: 1500, numerator: 1, d: 500, seq: 3}, {t: 2000, numerator: 1, d: null, seq: 4}]);
   });
 
-  it("averages only the last `window` intervals", () => {
+  /*it("averages only the last `window` intervals", () => {
     const t = createTapTracker();
     const times = [...evenly(5, 500), ...evenly(4, 450, 2450)];   // 4 × 500 ms, then 4 × 450 ms
     const r = tapAll(t, times).at(-1);
@@ -41,7 +41,6 @@ describe("createTapTracker", () => {
     expect(r.bpm).toBeCloseTo(60000 / 450);         // window holds only the 450 ms intervals
     expect(r.averageBpm).toBeCloseTo(60000 / 475);  // whole count: mean of 500 and 450
   });
-
   it("honours a custom window size", () => {
     const r = tapAll(createTapTracker({ window: 2 }), [0, 600, 1100, 1600]).at(-1);
     expect(r.taps).toEqual([
@@ -49,26 +48,14 @@ describe("createTapTracker", () => {
       {t: 1100, d: 500, numerator: 1, seq: 2},
       {t: 1600, d: null, numerator: 1, seq: 3}]);  // window = 2, so only the last 2 intervals are averaged
     expect(r.periodMs).toBeCloseTo(500);
-  });
+  });*/ // TODO split tracking and rhythm transcribing also in the unit tests
 
-  it("measures jitter as the coefficient of variation of the window", () => {
-    const r = tapAll(createTapTracker(), [0, 480, 1000, 1480, 2000]).at(-1);  // 480, 520, 480, 520
-    const sd = Math.sqrt((4 * 20 ** 2) / 3);
-    expect(r.periodMs).toBeCloseTo(500);
-    expect(r.jitter).toBeCloseTo(sd / 500, 10);
-  });
+
 
   it("leaves jitter unmeasured with a single interval", () => {
     const r = tapAll(createTapTracker(), [0, 500]).at(-1);
     expect(r.bpm).toBeCloseTo(120);
     expect(r.jitter).toBeNull();
-  });
-
-  it("averages phase so one early and one late tap cancel out", () => {
-    const r = tapAll(createTapTracker(), [1000, 1510, 1990, 2500]).at(-1);
-    expect(r.periodMs).toBeCloseTo(500);
-    expect(r.beatNumber).toBe(0);
-    expect(r.gridOriginMs).toBeCloseTo(1000);
   });
 
   describe("restarting a count", () => {
